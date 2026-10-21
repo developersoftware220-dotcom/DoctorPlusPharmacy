@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Doctor Plus Pharmacy</title>
+<style>
+:root{--bg:#f3f6f9;--card:#fff;--tx:#1d2733;--mu:#6b7785;--pr:#0f8f6f;--pd:#0a6b53;--bd:#e1e7ee;--rd:#d64545;--or:#e8890c}
+*{box-sizing:border-box}body{margin:0;font:14px system-ui,Segoe UI,Arial;background:var(--bg);color:var(--tx);display:flex;min-height:100vh}
+aside{width:210px;background:#0d2a2a;color:#cfe;padding:12px 8px;position:sticky;top:0;height:100vh;overflow:auto;flex-shrink:0}
+aside h1{font-size:17px;color:#fff;margin:6px 8px 14px}aside button{display:block;width:100%;text-align:left;background:none;border:0;color:#cfe;padding:9px 12px;border-radius:8px;cursor:pointer;font-size:14px;margin-bottom:2px}
+aside button:hover{background:#17403f}aside button.on{background:var(--pr);color:#fff}
+main{flex:1;padding:18px;min-width:0}h2{margin:0 0 14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}
+.stat{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px}.stat b{display:block;font-size:22px;margin-top:4px}.stat span{color:var(--mu)}
+table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid var(--bd);text-align:left}th{background:#f7f9fb;font-size:12px;color:var(--mu);text-transform:uppercase}
+.tw{overflow-x:auto}input,select,textarea{padding:8px 10px;border:1px solid var(--bd);border-radius:8px;font:inherit;width:100%;background:#fff}
+button.b{background:var(--pr);color:#fff;border:0;padding:8px 14px;border-radius:8px;cursor:pointer;font:inherit}button.b:hover{background:var(--pd)}
+button.g{background:#e8eef3;color:var(--tx)}button.r{background:var(--rd)}button.s{padding:4px 9px;font-size:12px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}.row>*{flex:1;min-width:120px}.row>button{flex:0 0 auto}
+.pos{display:grid;grid-template-columns:1.2fr 1fr;gap:14px}@media(max-width:850px){body{display:block}aside{width:auto;height:auto;position:static;display:flex;flex-wrap:wrap}aside h1{width:100%}aside button{width:auto}.pos{grid-template-columns:1fr}}
+.tag{padding:2px 8px;border-radius:10px;font-size:12px;background:#e8eef3}.red{background:#fde4e4;color:var(--rd)}.org{background:#fdf0dc;color:var(--or)}.grn{background:#dcf5ea;color:var(--pd)}
+#md{position:fixed;inset:0;background:#0007;display:none;align-items:center;justify-content:center;z-index:9;padding:14px}#md>div{background:#fff;border-radius:12px;padding:18px;max-width:560px;width:100%;max-height:92vh;overflow:auto}
+#ts{position:fixed;bottom:16px;right:16px;background:#222;color:#fff;padding:10px 16px;border-radius:8px;display:none;z-index:99}
+.x{float:right;padding:4px 10px;font-size:16px;margin:-6px -6px 0 8px}label{font-size:12px;color:var(--mu);display:block;margin:6px 0 2px}.tot{font-size:15px}.tot div{display:flex;justify-content:space-between;padding:3px 0}.tot .big{font-size:19px;font-weight:700;color:var(--pd)}
+</style></head><body>
+<aside><h1 id="brand">💊 Doctor Plus Pharmacy</h1><nav id="nav"></nav></aside>
+<main id="main"></main><div id="md"><div id="mc"></div></div><div id="ts"></div>
+<script>
+"use strict";
+const KEY="pharmacare_db_v1",$=id=>document.getElementById(id);
+const E=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const N=v=>Number.isFinite(+v)?+v:0, today=()=>new Date().toISOString().slice(0,10);
+const emptyDB=()=>({medicines:[],sales:[],purchases:[],heldBills:[],customers:[],suppliers:[],stockHistory:[],
+ settings:{name:"Doctor Plus Pharmacy",owner:"",phone:"",address:"",currency:"Rs",tax:0,footer:"Thank you! Get well soon.",lowStock:10,expiryDays:60,lastBackup:""},
+ counters:{medicine:0,sale:0,purchase:0,held:0,customer:0,supplier:0,history:0}});
+function norm(d){const e=emptyDB();d=d&&typeof d=="object"?d:{};for(const k in e)if(d[k]==null)d[k]=e[k];
+ for(const k of["medicines","sales","purchases","heldBills","customers","suppliers","stockHistory"])if(!Array.isArray(d[k]))d[k]=[];
+ d.settings=Object.assign({},e.settings,d.settings);d.counters=Object.assign({},e.counters,d.counters);
+ d.settings.name="Doctor Plus Pharmacy";return d}
+let db;try{db=norm(JSON.parse(localStorage.getItem(KEY)))}catch(e){db=emptyDB()}
+const id=(k,p,n)=>{db.counters[k]=(db.counters[k]||0)+1;return p+String(db.counters[k]).padStart(n,"0")};
+// ---- Save + auto backup (daily snapshot, last 7 kept) ----
+function save(){try{localStorage.setItem(KEY,JSON.stringify(db));
+ const sk="pc_snap_"+today();if(!localStorage.getItem(sk)){localStorage.setItem(sk,JSON.stringify(db));
+ Object.keys(localStorage).filter(k=>k.startsWith("pc_snap_")).sort().slice(0,-7).forEach(k=>localStorage.removeItem(k))}
+ }catch(e){toast("⚠️ Save failed: storage is full or blocked. Please download a backup!")}}
+function toast(m,t=2800){const x=$("ts");x.textContent=m;x.style.display="block";clearTimeout(x._t);x._t=setTimeout(()=>x.style.display="none",t)}
+const S=()=>db.settings,money=v=>S().currency+" "+N(v).toLocaleString(undefined,{maximumFractionDigits:2});
+function modal(h){$("mc").innerHTML=`<button class="b g x" onclick="closeM()" title="Close">✕</button>`+h;$("md").style.display="flex"}function closeM(){$("md").style.display="none"}
+$("md").onclick=e=>{if(e.target.id=="md")closeM()};
+function addHist(m,old,adj,why){db.stockHistory.unshift({id:id("history","SH-",5),medicineId:m.id,medicineName:m.name,oldStock:old,adjustment:adj,newStock:m.stock,reason:why,date:today(),createdAt:new Date().toISOString()});db.stockHistory.length=Math.min(db.stockHistory.length,2000)}
+const med=i=>db.medicines.find(m=>m.id==i);
+const daysTo=d=>d?Math.ceil((new Date(d)-new Date(today()))/864e5):9999;
+const low=m=>N(m.stock)<=N(m.minStock??S().lowStock);
+// ---- Navigation ----
+const PAGES={dashboard:["📊","Dashboard"],sales:["🧾","New Sale"],held:["⏸️","Held Bills"],medicines:["💊","Medicines"],purchases:["📦","Purchases"],stock:["🗃️","Stock"],expiry:["⏳","Expiry"],customers:["👥","Customers"],suppliers:["🚚","Suppliers"],reports:["📈","Reports"],settings:["⚙️","Settings & Backup"]};
+let cur="dashboard";
+function go(p){cur=p;$("nav").innerHTML=Object.keys(PAGES).map(k=>`<button class="${k==p?"on":""}" onclick="go('${k}')">${PAGES[k][0]} ${PAGES[k][1]}</button>`).join("");
+ $("brand").textContent="💊 "+S().name;document.title=S().name;R[p]()}
+const M=h=>$("main").innerHTML=h;
+const tbl=(h,rows)=>`<div class="tw"><table><tr>${h.map(x=>`<th>${x}</th>`).join("")}</tr>${rows||`<tr><td colspan="${h.length}" style="color:var(--mu)">No records found</td></tr>`}</table></div>`;
+// ---- Generic form modal ----
+function form(title,fields,vals,onOk){window._ok=onOk;modal(`<h3>${title}</h3>`+fields.map(f=>`<label>${f[1]}</label><input id="f_${f[0]}" type="${f[2]||"text"}" value="${E(vals[f[0]]??"")}">`).join("")+`<div class="row" style="margin-top:14px"><button class="b" onclick="submitF()">Save</button><button class="b g" onclick="closeM()">Cancel</button></div>`);window._f=fields}
+function submitF(){const o={};_f.forEach(f=>o[f[0]]=$("f_"+f[0]).value.trim());_ok(o)}
+const R={};
+// ---- Dashboard ----
+R.dashboard=()=>{const t=today(),ts=db.sales.filter(s=>s.date==t),pr=ts.reduce((a,s)=>a+s.items.reduce((b,i)=>b+(i.price-N(i.purchasePrice))*i.qty,0)-N(s.discount),0);
+ const lw=db.medicines.filter(low),ex=db.medicines.filter(m=>daysTo(m.expiryDate)<=S().expiryDays);
+ const days=Math.floor((Date.now()-new Date(S().lastBackup||0))/864e5),warn=!S().lastBackup||days>=7?`<div class="card" style="background:#fdf0dc">⚠️ ${S().lastBackup?"It has been "+days+" days since your last backup.":"No backup has been taken yet."} <button class="b s" onclick="go('settings')">Back up now</button></div>`:"";
+ M(`<h2>${E(S().name)} — Dashboard</h2>${warn}<div class="grid"><div class="stat"><span>Today's Sales</span><b>${money(ts.reduce((a,s)=>a+s.total,0))}</b></div><div class="stat"><span>Today's Profit</span><b>${money(pr)}</b></div><div class="stat"><span>Total Medicines</span><b>${db.medicines.length}</b></div><div class="stat"><span>Low Stock</span><b style="color:var(--or)">${lw.length}</b></div><div class="stat"><span>Expiry / Expired</span><b style="color:var(--rd)">${ex.length}</b></div><div class="stat"><span>Stock Value</span><b>${money(db.medicines.reduce((a,m)=>a+N(m.stock)*N(m.purchasePrice),0))}</b></div></div>
+ <div class="card"><h3>Recent Sales</h3>${tbl(["Invoice","Customer","Total","Date"],db.sales.slice(0,8).map(s=>`<tr><td>${s.id}</td><td>${E(s.customer)}</td><td>${money(s.total)}</td><td>${s.date}</td></tr>`).join(""))}</div>
+ <div class="card"><h3>Low Stock</h3>${tbl(["Medicine","Stock","Min"],lw.slice(0,8).map(m=>`<tr><td>${E(m.name)}</td><td>${m.stock}</td><td>${m.minStock}</td></tr>`).join(""))}</div>`)};
+// ---- Medicines ----
+const MF=[["name","Name"],["code","Code / Barcode"],["category","Category"],["company","Company"],["batch","Batch"],["expiryDate","Expiry","date"],["purchasePrice","Purchase Price","number"],["salePrice","Sale Price","number"],["stock","Stock","number"],["minStock","Min Stock","number"]];
+R.medicines=(q="")=>{const l=db.medicines.filter(m=>(m.name+m.code+m.company).toLowerCase().includes(q.toLowerCase()));
+ M(`<h2>Medicines</h2><div class="row"><input placeholder="Search..." value="${E(q)}" oninput="R.medicines(this.value);this.focus()" id="sq"><button class="b" onclick="editMed()">+ Add Medicine</button></div><div class="card">${tbl(["Name","Code","Company","Expiry","Cost","Price","Stock",""],l.map(m=>`<tr><td>${E(m.name)}</td><td>${E(m.code)}</td><td>${E(m.company)}</td><td>${m.expiryDate||"-"}</td><td>${m.purchasePrice}</td><td>${m.salePrice}</td><td><span class="tag ${low(m)?"org":"grn"}">${m.stock}</span></td><td><button class="b s g" onclick="editMed('${m.id}')">Edit</button> <button class="b s r" onclick="delMed('${m.id}')">Del</button></td></tr>`).join(""))}</div>`);const s=$("sq");s.setSelectionRange(q.length,q.length)};
+function editMed(i){const m=i?med(i):{minStock:S().lowStock};form(i?"Edit Medicine":"Add Medicine",MF,m,o=>{if(!o.name)return toast("Name is required");
+ if(o.code&&db.medicines.some(x=>x.id!=i&&x.code==o.code))return toast("This code already exists");
+ ["purchasePrice","salePrice","stock","minStock"].forEach(k=>o[k]=N(o[k]));
+ if(i){const old=m.stock;Object.assign(m,o);if(old!=m.stock)addHist(m,old,m.stock-old,"Edited")}else{const n=Object.assign({id:id("medicine","MED-",4)},o);db.medicines.push(n);if(n.stock)addHist(n,0,n.stock,"Opening stock")}
+ save();closeM();R.medicines();toast("Saved ✅")})}
+function delMed(i){if(confirm("Delete this item?")){db.medicines=db.medicines.filter(m=>m.id!=i);save();R.medicines()}}
+// ---- POS ----
+let cart=[],pq="";
+R.sales=()=>{M(`<h2>New Sale</h2><div class="pos"><div class="card"><input id="ps" placeholder="Medicine name / code search..." oninput="pq=this.value;posList()"><div id="pl" style="margin-top:10px"></div></div><div class="card"><div id="cb"></div></div></div>`);posList();bill()};
+function posList(){const l=db.medicines.filter(m=>(m.name+m.code).toLowerCase().includes(pq.toLowerCase())).slice(0,40);
+ $("pl").innerHTML=tbl(["Medicine","Price","Stock",""],l.map(m=>`<tr><td>${E(m.name)}<br><small style="color:var(--mu)">${E(m.company)}</small></td><td>${m.salePrice}</td><td>${m.stock}</td><td><button class="b s" ${m.stock<1||daysTo(m.expiryDate)<0?"disabled":""} onclick="addC('${m.id}')">Add</button></td></tr>`).join(""))}
+function addC(i){const m=med(i),c=cart.find(x=>x.id==i);if(c){if(c.qty>=m.stock)return toast("Out of stock");c.qty++}else cart.push({id:i,qty:1});bill()}
+function qty(i,d){const c=cart.find(x=>x.id==i),m=med(i);c.qty+=d;if(c.qty>m.stock){c.qty=m.stock;toast("Not enough stock")}if(c.qty<1)cart=cart.filter(x=>x.id!=i);bill()}
+function calc(){const sub=cart.reduce((a,c)=>a+c.qty*med(c.id).salePrice,0),dv=N($("dc")?.value),dt=$("dt")?.value||"%",disc=Math.min(sub,dt=="%"?sub*dv/100:dv),tax=(sub-disc)*N(S().tax)/100;return{sub,disc,tax,total:sub-disc+tax}}
+function bill(){const k=$("cb"),dc=$("dc")?.value||"",dt=$("dt")?.value||"%",cu=$("cu")?.value||"",pm=$("pm")?.value||"Cash",pd=$("pd")?.value||"";
+ k.innerHTML=`<h3>Current Bill</h3>`+tbl(["Item","Qty","Total",""],cart.map(c=>{const m=med(c.id);return`<tr><td>${E(m.name)}</td><td><button class="b s g" onclick="qty('${c.id}',-1)">-</button> ${c.qty} <button class="b s g" onclick="qty('${c.id}',1)">+</button></td><td>${money(c.qty*m.salePrice)}</td><td><button class="b s r" onclick="qty('${c.id}',-999)">✕</button></td></tr>`}).join(""))+
+ `<div class="row" style="margin-top:10px"><input id="cu" list="cl" placeholder="Customer (optional)" value="${E(cu)}"><datalist id="cl">${db.customers.map(c=>`<option>${E(c.name)}`).join("")}</datalist><select id="pm" onchange="bill()">${["Cash","Card","Easypaisa/JazzCash","Credit"].map(x=>`<option ${x==pm?"selected":""}>${x}</option>`).join("")}</select></div>
+ <div class="row"><input id="dc" type="number" min="0" placeholder="Discount" value="${dc}" oninput="tot()"><select id="dt" onchange="tot()"><option ${dt=="%"?"selected":""}>%</option><option ${dt!="%"?"selected":""}>Amount</option></select><input id="pd" type="number" placeholder="Paid amount" value="${pd}" oninput="tot()"></div><div class="tot" id="tt"></div>
+ <div class="row"><button class="b" onclick="finish()">✅ Complete Sale</button><button class="b g" onclick="hold()">⏸ Hold</button><button class="b r" onclick="cart=[];bill()">Clear</button></div>`;tot()}
+function tot(){const c=calc(),p=$("pd").value===""?c.total:N($("pd").value);$("tt").innerHTML=`<div>Subtotal<span>${money(c.sub)}</span></div><div>Discount<span>-${money(c.disc)}</span></div>${S().tax?`<div>Tax (${S().tax}%)<span>${money(c.tax)}</span></div>`:""}<div class="big">Total<span>${money(c.total)}</span></div><div>Change<span>${money(Math.max(0,p-c.total))}</span></div>`}
+function finish(){if(!cart.length)return toast("The bill is empty");const c=calc(),inv=id("sale","INV-",6),p=$("pd").value===""?c.total:N($("pd").value);
+ const items=cart.map(x=>{const m=med(x.id),o=m.stock;m.stock-=x.qty;addHist(m,o,-x.qty,"Sale "+inv);return{medicineId:m.id,name:m.name,qty:x.qty,quantity:x.qty,price:m.salePrice,purchasePrice:m.purchasePrice,total:x.qty*m.salePrice}});
+ const s={id:inv,invoice:inv,customer:$("cu").value.trim()||"Walk-in Customer",items,subtotal:c.sub,discount:c.disc,tax:c.tax,total:c.total,paid:p,change:Math.max(0,p-c.total),paymentMethod:$("pm").value,date:today(),createdAt:new Date().toISOString()};
+ s.customerName=s.customer;db.sales.unshift(s);save();cart=[];invoice(s.id);R.sales()}
+function hold(){if(!cart.length)return toast("The bill is empty");db.heldBills.unshift({id:id("held","HLD-",4),customer:$("cu").value.trim(),items:cart.map(c=>({...c})),date:today(),createdAt:new Date().toISOString()});save();cart=[];R.sales();toast("Bill put on hold")}
+// ---- Held ----
+R.held=()=>M(`<h2>Held Bills</h2><div class="card">${tbl(["ID","Customer","Items","Date",""],db.heldBills.map(h=>`<tr><td>${h.id}</td><td>${E(h.customer)||"-"}</td><td>${h.items.length}</td><td>${h.date}</td><td><button class="b s" onclick="resume('${h.id}')">Resume</button> <button class="b s r" onclick="db.heldBills=db.heldBills.filter(x=>x.id!='${h.id}');save();R.held()">Delete</button></td></tr>`).join(""))}</div>`);
+function resume(i){const h=db.heldBills.find(x=>x.id==i);cart=h.items.filter(x=>med(x.id));db.heldBills=db.heldBills.filter(x=>x!=h);save();go("sales");$("cu").value=h.customer||""}
+// ---- Invoice (print / save / download) ----
+function invHTML(s){return`<html><head><meta charset="utf-8"><title>${s.id}</title><style>body{font:13px Arial;max-width:340px;margin:auto;padding:10px}h2,p{text-align:center;margin:3px 0}table{width:100%;border-collapse:collapse}td,th{padding:3px 0;border-bottom:1px dashed #999;text-align:left}.r{text-align:right}hr{border:0;border-top:1px solid #000}</style></head><body><h2>${E(S().name)}</h2><p>${E(S().address)}</p><p>${E(S().phone)}${S().owner?" | "+E(S().owner):""}</p><hr><p style="text-align:left">Invoice: <b>${s.id}</b><br>Date: ${new Date(s.createdAt).toLocaleString()}<br>Customer: ${E(s.customer)}<br>Payment: ${s.paymentMethod}</p>
+<table><tr><th>Item</th><th>Qty</th><th class="r">Price</th><th class="r">Total</th></tr>${s.items.map(i=>`<tr><td>${E(i.name)}</td><td>${i.qty}</td><td class="r">${i.price}</td><td class="r">${i.total}</td></tr>`).join("")}</table><hr>
+<table><tr><td>Subtotal</td><td class="r">${money(s.subtotal)}</td></tr><tr><td>Discount</td><td class="r">-${money(s.discount)}</td></tr>${s.tax?`<tr><td>Tax</td><td class="r">${money(s.tax)}</td></tr>`:""}<tr><td><b>Total</b></td><td class="r"><b>${money(s.total)}</b></td></tr><tr><td>Paid</td><td class="r">${money(s.paid)}</td></tr><tr><td>Change</td><td class="r">${money(s.change)}</td></tr></table><p style="margin-top:10px">${E(S().footer)}</p></body></html>`}
+function invoice(i){const s=db.sales.find(x=>x.id==i);if(!s)return;modal(`<h3>Invoice ${s.id}</h3><iframe id="ifr" style="width:100%;height:380px;border:1px solid var(--bd);border-radius:8px" srcdoc="${E(invHTML(s))}"></iframe><div class="row" style="margin-top:10px"><button class="b" onclick="prn()">🖨️ Print Bill</button><button class="b g" onclick="prn()">💾 Save as PDF</button><button class="b g" onclick="closeM()">Close</button></div>`)}
+function prn(){const f=$("ifr");f.contentWindow.focus();f.contentWindow.print()}
+function dl(n,t,ty){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),999)}
+// ---- Purchases ----
+R.purchases=()=>M(`<h2>Purchases</h2><div class="row"><button class="b" onclick="newPur()">+ New Purchase</button></div><div class="card">${tbl(["ID","Supplier","Items","Total","Date","Status"],db.purchases.map(p=>`<tr><td>${p.id}</td><td>${E(p.supplier)}</td><td>${p.items.map(i=>E(i.name)+" ×"+i.quantity).join(", ")}</td><td>${money(p.total)}</td><td>${p.date}</td><td>${p.received?'<span class="tag grn">Received</span>':`<button class="b s" onclick="recv('${p.id}')">Receive</button>`}</td></tr>`).join(""))}</div>`);
+function newPur(){form("New Purchase",[["supplier","Supplier"],["name","Medicine name (existing or new)"],["quantity","Quantity","number"],["purchasePrice","Purchase price","number"],["salePrice","Sale price (for new medicine)","number"],["batch","Batch"],["expiryDate","Expiry","date"]],{},o=>{if(!o.name||N(o.quantity)<=0)return toast("Enter name and quantity");
+ const m=db.medicines.find(x=>x.name.toLowerCase()==o.name.toLowerCase()),q=N(o.quantity),c=N(o.purchasePrice);
+ db.purchases.unshift({id:id("purchase","PUR-",4),supplier:o.supplier,supplierName:o.supplier,items:[{medicineId:m?m.id:"",name:o.name,quantity:q,purchasePrice:c,salePrice:N(o.salePrice),batch:o.batch,expiryDate:o.expiryDate,total:q*c}],total:q*c,subtotal:q*c,date:today(),createdAt:new Date().toISOString(),received:false});
+ if(o.supplier&&!db.suppliers.some(s=>s.name==o.supplier))db.suppliers.push({id:id("supplier","SUP-",4),name:o.supplier,phone:"",address:""});save();closeM();R.purchases()})}
+function recv(i){const p=db.purchases.find(x=>x.id==i);p.items.forEach(it=>{let m=it.medicineId?med(it.medicineId):db.medicines.find(x=>x.name.toLowerCase()==it.name.toLowerCase());
+ if(!m){m={id:id("medicine","MED-",4),name:it.name,code:"",category:"",company:"",batch:"",expiryDate:"",purchasePrice:0,salePrice:it.salePrice||it.purchasePrice*1.2,stock:0,minStock:S().lowStock};db.medicines.push(m)}
+ const o=m.stock;m.stock+=it.quantity;m.purchasePrice=it.purchasePrice;if(it.salePrice)m.salePrice=it.salePrice;if(it.batch)m.batch=it.batch;if(it.expiryDate)m.expiryDate=it.expiryDate;addHist(m,o,it.quantity,"Purchase "+p.id)});p.received=true;save();R.purchases();toast("Stock added ✅")}
+// ---- Stock ----
+R.stock=()=>M(`<h2>Stock</h2><div class="card">${tbl(["Medicine","Stock","Min",""],db.medicines.map(m=>`<tr><td>${E(m.name)}</td><td><span class="tag ${low(m)?"org":"grn"}">${m.stock}</span></td><td>${m.minStock}</td><td><button class="b s g" onclick="adj('${m.id}')">Adjust</button></td></tr>`).join(""))}</div><div class="card"><h3>History</h3>${tbl(["Date","Medicine","Old","Change","New","Reason"],db.stockHistory.slice(0,60).map(h=>`<tr><td>${h.date}</td><td>${E(h.medicineName)}</td><td>${h.oldStock}</td><td>${h.adjustment>0?"+":""}${h.adjustment}</td><td>${h.newStock}</td><td>${E(h.reason)}</td></tr>`).join(""))}</div>`);
+function adj(i){const m=med(i);form("Adjust: "+m.name,[["a","Change (+ or -)","number"],["r","Reason"]],{},o=>{const a=N(o.a);if(!a||m.stock+a<0)return toast("Invalid quantity");const old=m.stock;m.stock+=a;addHist(m,old,a,o.r||"Adjustment");save();closeM();R.stock()})}
+// ---- Expiry ----
+R.expiry=()=>{const l=db.medicines.filter(m=>m.expiryDate&&daysTo(m.expiryDate)<=S().expiryDays).sort((a,b)=>daysTo(a.expiryDate)-daysTo(b.expiryDate));
+ M(`<h2>Expiry (within ${S().expiryDays} days)</h2><div class="card">${tbl(["Medicine","Batch","Expiry","Days","Stock"],l.map(m=>{const d=daysTo(m.expiryDate);return`<tr><td>${E(m.name)}</td><td>${E(m.batch)}</td><td>${m.expiryDate}</td><td><span class="tag ${d<0?"red":"org"}">${d<0?"Expired":d}</span></td><td>${m.stock}</td></tr>`}).join(""))}</div>`)};
+// ---- Customers / Suppliers ----
+const PF=[["name","Name"],["phone","Phone"],["address","Address"]];
+function people(k,t,p){R[k]=()=>M(`<h2>${t}s</h2><div class="row"><button class="b" onclick="ep('${k}')">+ Add ${t}</button></div><div class="card">${tbl(["Name","Phone","Address",k=="customers"?"Purchases":"Supplied",""],db[k].map(x=>{const tot=k=="customers"?db.sales.filter(s=>s.customer==x.name).reduce((a,s)=>a+s.total,0):db.purchases.filter(s=>s.supplier==x.name).reduce((a,s)=>a+s.total,0);return`<tr><td>${E(x.name)}</td><td>${E(x.phone)}</td><td>${E(x.address)}</td><td>${money(tot)}</td><td><button class="b s g" onclick="ep('${k}','${x.id}')">Edit</button> <button class="b s r" onclick="dp('${k}','${x.id}')">Del</button></td></tr>`}).join(""))}</div>`)}
+people("customers","Customer");people("suppliers","Supplier");
+function ep(k,i){const x=i?db[k].find(y=>y.id==i):{};form(i?"Edit":"Add",PF,x,o=>{if(!o.name)return toast("Enter a name");if(i)Object.assign(x,o);else db[k].push({id:id(k=="customers"?"customer":"supplier",k=="customers"?"CUS-":"SUP-",4),...o});save();closeM();R[k]()})}
+function dp(k,i){if(confirm("Delete?")){db[k]=db[k].filter(x=>x.id!=i);save();R[k]()}}
+// ---- Reports ----
+let rf=today().slice(0,8)+"01",rt=today();
+R.reports=()=>{const ss=db.sales.filter(s=>s.date>=rf&&s.date<=rt),rev=ss.reduce((a,s)=>a+s.total,0),cost=ss.reduce((a,s)=>a+s.items.reduce((b,i)=>b+N(i.purchasePrice)*i.qty,0),0),top={};
+ ss.forEach(s=>s.items.forEach(i=>top[i.name]=(top[i.name]||0)+i.qty));
+ M(`<h2>Reports</h2><div class="row"><div><label>From</label><input type="date" id="rf" value="${rf}" onchange="rf=this.value;R.reports()"></div><div><label>To</label><input type="date" id="rt" value="${rt}" onchange="rt=this.value;R.reports()"></div><button class="b g" onclick="csv()">⬇️ Export CSV</button></div>
+ <div class="grid"><div class="stat"><span>Sales</span><b>${money(rev)}</b></div><div class="stat"><span>Cost</span><b>${money(cost)}</b></div><div class="stat"><span>Profit</span><b>${money(rev-cost)}</b></div><div class="stat"><span>Bills</span><b>${ss.length}</b></div></div>
+ <div class="card"><h3>Top Selling</h3>${tbl(["Medicine","Qty"],Object.entries(top).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>`<tr><td>${E(e[0])}</td><td>${e[1]}</td></tr>`).join(""))}</div>
+ <div class="card"><h3>Sales</h3>${tbl(["Invoice","Date","Customer","Total",""],ss.map(s=>`<tr><td>${s.id}</td><td>${s.date}</td><td>${E(s.customer)}</td><td>${money(s.total)}</td><td><button class="b s g" onclick="invoice('${s.id}')">View / Print</button></td></tr>`).join(""))}</div>`)};
+function csv(){const r=[["Invoice","Date","Customer","Payment","Total"],...db.sales.filter(s=>s.date>=rf&&s.date<=rt).map(s=>[s.id,s.date,s.customer,s.paymentMethod,s.total])];dl("sales.csv",r.map(x=>x.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n"),"text/csv")}
+// ---- Settings & Backup ----
+R.settings=()=>{const s=S(),snaps=Object.keys(localStorage).filter(k=>k.startsWith("pc_snap_")).sort().reverse();
+ M(`<h2>Settings & Backup</h2><div class="card"><h3>Pharmacy Profile</h3><div class="row"><div><label>Owner</label><input id="s_owner" value="${E(s.owner)}"></div></div><div class="row"><div><label>Phone</label><input id="s_phone" value="${E(s.phone)}"></div><div><label>Address</label><input id="s_address" value="${E(s.address)}"></div></div>
+ <div class="row"><div><label>Currency</label><input id="s_currency" value="${E(s.currency)}"></div><div><label>Tax %</label><input id="s_tax" type="number" value="${s.tax}"></div><div><label>Low stock default</label><input id="s_lowStock" type="number" value="${s.lowStock}"></div><div><label>Expiry alert (days)</label><input id="s_expiryDays" type="number" value="${s.expiryDays}"></div></div><label>Invoice footer</label><input id="s_footer" value="${E(s.footer)}"><div class="row" style="margin-top:12px"><button class="b" onclick="saveSet()">Save Settings</button></div></div>
+ <div class="card"><h3>💾 Backup & Restore</h3><p style="color:var(--mu)">Last backup: ${s.lastBackup?new Date(s.lastBackup).toLocaleString():"Never"}. A snapshot is saved automatically every day (last 7 days kept). Please download a backup file at least once a week.</p>
+ <div class="row"><button class="b" onclick="backup()">⬇️ Download Backup</button><button class="b g" onclick="$('rf2').click()">⬆️ Restore from File</button><input type="file" id="rf2" accept=".json" hidden onchange="restore(this.files[0])"></div>
+ <label>Auto snapshots (browser mein)</label>${tbl(["Date",""],snaps.map(k=>`<tr><td>${k.slice(8)}</td><td><button class="b s g" onclick="snap('${k}')">Restore</button></td></tr>`).join(""))}</div>
+ <div class="card"><h3>⚠️ Danger Zone</h3><div class="row"><button class="b r" onclick="wipe('sales')">Clear sales history</button><button class="b r" onclick="wipe('all')">Delete all data</button></div></div>`)};
+function saveSet(){["owner","phone","address","currency","footer"].forEach(k=>S()[k]=$("s_"+k).value.trim());["tax","lowStock","expiryDays"].forEach(k=>S()[k]=N($("s_"+k).value));save();go("settings");toast("Settings saved ✅")}
+function backup(){S().lastBackup=new Date().toISOString();save();dl(`${S().name.replace(/\s+/g,"_")}_backup_${today()}.json`,JSON.stringify(db),"application/json");toast("Backup downloaded ✅")}
+function restore(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.medicines))throw 0;if(!confirm("Your current data will be replaced. Continue?"))return;
+ if(confirm("Download a backup of your current data first?"))backup();db=norm(d);save();go("settings");toast("Restored ✅")}catch(e){toast("Invalid backup file")}};r.readAsText(f)}
+function snap(k){if(confirm("Restore data from this day?")){db=norm(JSON.parse(localStorage.getItem(k)));save();go("settings");toast("Restored ✅")}}
+function wipe(w){if(!confirm("A backup will be downloaded first. Continue?"))return;backup();if(w=="all"){const s=db.settings;db=emptyDB();db.settings=s}else db.sales=[];save();go("settings")}
+addEventListener("beforeunload",save);
+go("dashboard");
+</script></body></html>
